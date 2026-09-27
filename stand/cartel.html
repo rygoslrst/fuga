@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FUGA — cartel del stand</title>
+<style>
+  /* Cartel para imprimir en A4. Fondo blanco a propósito: gasta poca tinta en
+     la impresora del colegio y el QR se lee mejor con máximo contraste. */
+  @font-face { font-family: 'Anton'; src: url('../fuentes/anton-latin.woff2') format('woff2'); }
+  @page { size: A4 portrait; margin: 0; }
+  :root { --tinta: #150f26; --menta: #1fc9aa; --brasa: #d9402a; --gris: #5b5570; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e9e6ef; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--tinta); }
+  .hoja {
+    width: 210mm; height: 297mm; margin: 12mm auto; background: #fff;
+    padding: 18mm 18mm 16mm; display: flex; flex-direction: column; align-items: center;
+    box-shadow: 0 6px 30px rgba(21, 15, 38, 0.18);
+  }
+  .cabecera { display: flex; align-items: flex-end; gap: 8mm; width: 100%; justify-content: center; }
+  .corredor { width: 34mm; height: auto; flex: none; }
+  h1 { font-family: 'Anton', Impact, sans-serif; font-weight: 400; font-size: 58mm; line-height: 0.82; letter-spacing: 0.01em; }
+  h1::after { content: ''; display: block; height: 4.2mm; width: 62%; margin: 3mm 0 0 auto; background: var(--menta); transform: skewX(-24deg); border-radius: 1mm; }
+  .bajada { font-size: 6.2mm; color: var(--gris); margin-top: 6mm; text-align: center; }
+  .qr { width: 104mm; height: 104mm; margin-top: 11mm; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .escanea { font-family: 'Anton', Impact, sans-serif; font-size: 9.4mm; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 7mm; text-align: center; }
+  .url { font-size: 5.4mm; color: var(--gris); margin-top: 2mm; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .controles { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 10mm; border-top: 0.4mm solid #ddd9e6; padding-top: 7mm; }
+  .control { text-align: center; }
+  .control + .control { border-left: 0.4mm dashed #c9c3d6; }
+  .control b { display: block; font-family: 'Anton', Impact, sans-serif; font-weight: 400; font-size: 8mm; letter-spacing: 0.08em; text-transform: uppercase; }
+  .control span { font-size: 4.6mm; color: var(--gris); }
+  .nota { font-size: 4.6mm; color: var(--gris); margin-top: 6mm; text-align: center; }
+  .voto { margin-top: auto; font-family: 'Anton', Impact, sans-serif; font-size: 8.6mm; letter-spacing: 0.05em; text-transform: uppercase; color: var(--brasa); }
+  .imprimir { position: fixed; top: 16px; right: 16px; font: 600 15px system-ui, sans-serif; padding: 12px 20px; border-radius: 999px; border: 0; background: var(--tinta); color: #fff; cursor: pointer; }
+  .imprimir:focus-visible { outline: 3px solid var(--menta); outline-offset: 2px; }
+  /* Sólo en pantalla: la vista previa se achica para entrar entera. */
+  @media screen and (max-width: 880px) { .hoja { zoom: 0.72; } }
+  @media screen and (max-height: 1180px) and (min-width: 881px) { .hoja { zoom: 0.8; } }
+  @media print {
+    body { background: #fff; }
+    .hoja { margin: 0; box-shadow: none; }
+    .imprimir { display: none; }
+  }
+</style>
+</head>
+<body>
+<button class="imprimir" type="button" onclick="print()">Imprimir</button>
+<main class="hoja">
+  <div class="cabecera">
+    <svg class="corredor" viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M33 22 Q20 18 6 26" stroke="#1fc9aa" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <circle cx="37" cy="14" r="6.5" fill="#150f26"/>
+      <path d="M34 24 L28 38 L19 50 M28 38 L39 46 L41 56 M32 28 L43 33 M32 28 L22 33" stroke="#150f26" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <h1>FUGA</h1>
+  </div>
+  <p class="bajada">Huí por las azoteas. Que no te alcance.</p>
+
+  <div class="qr" role="img" aria-label="Código QR para abrir el juego"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 41 41" shape-rendering="crispEdges"><rect x="-4" y="-4" width="41" height="41" fill="#fff"/><path fill="#150f26" d="M0 0h7v1h-7zM9 0h2v1h-2zM12 0h1v1h-1zM15 0h1v1h-1zM17 0h2v1h-2zM20 0h1v1h-1zM23 0h2v1h-2zM26 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM11 1h1v1h-1zM13 1h2v1h-2zM16 1h3v1h-3zM20 1h2v1h-2zM24 1h1v1h-1zM26 1h1v1h-1zM32 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM10 2h2v1h-2zM13 2h1v1h-1zM16 2h1v1h-1zM18 2h1v1h-1zM20 2h3v1h-3zM26 2h1v1h-1zM28 2h3v1h-3zM32 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM9 3h1v1h-1zM11 3h3v1h-3zM17 3h4v1h-4zM26 3h1v1h-1zM28 3h3v1h-3zM32 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM9 4h3v1h-3zM13 4h1v1h-1zM15 4h4v1h-4zM20 4h1v1h-1zM22 4h3v1h-3zM26 4h1v1h-1zM28 4h3v1h-3zM32 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM8 5h3v1h-3zM12 5h4v1h-4zM18 5h1v1h-1zM21 5h1v1h-1zM26 5h1v1h-1zM32 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h1v1h-1zM24 6h1v1h-1zM26 6h7v1h-7zM8 7h2v1h-2zM12 7h1v1h-1zM15 7h1v1h-1zM17 7h2v1h-2zM21 7h3v1h-3zM4 8h4v1h-4zM13 8h3v1h-3zM17 8h3v1h-3zM21 8h1v1h-1zM24 8h1v1h-1zM26 8h2v1h-2zM31 8h1v1h-1zM0 9h1v1h-1zM2 9h1v1h-1zM4 9h1v1h-1zM9 9h1v1h-1zM11 9h2v1h-2zM14 9h1v1h-1zM16 9h1v1h-1zM18 9h4v1h-4zM23 9h1v1h-1zM27 9h1v1h-1zM29 9h1v1h-1zM2 10h3v1h-3zM6 10h1v1h-1zM10 10h1v1h-1zM13 10h1v1h-1zM15 10h1v1h-1zM19 10h1v1h-1zM23 10h9v1h-9zM7 11h1v1h-1zM9 11h1v1h-1zM11 11h2v1h-2zM15 11h3v1h-3zM19 11h1v1h-1zM21 11h1v1h-1zM23 11h4v1h-4zM28 11h1v1h-1zM32 11h1v1h-1zM0 12h2v1h-2zM6 12h3v1h-3zM10 12h2v1h-2zM15 12h1v1h-1zM18 12h3v1h-3zM26 12h3v1h-3zM31 12h2v1h-2zM0 13h1v1h-1zM2 13h2v1h-2zM5 13h1v1h-1zM11 13h3v1h-3zM15 13h1v1h-1zM18 13h1v1h-1zM20 13h2v1h-2zM23 13h1v1h-1zM27 13h1v1h-1zM29 13h1v1h-1zM31 13h1v1h-1zM0 14h1v1h-1zM3 14h1v1h-1zM5 14h2v1h-2zM9 14h2v1h-2zM13 14h3v1h-3zM17 14h1v1h-1zM20 14h1v1h-1zM23 14h1v1h-1zM25 14h1v1h-1zM27 14h1v1h-1zM30 14h2v1h-2zM1 15h1v1h-1zM3 15h3v1h-3zM9 15h1v1h-1zM14 15h3v1h-3zM21 15h1v1h-1zM23 15h2v1h-2zM28 15h2v1h-2zM31 15h1v1h-1zM0 16h1v1h-1zM4 16h3v1h-3zM9 16h3v1h-3zM15 16h2v1h-2zM18 16h4v1h-4zM23 16h1v1h-1zM26 16h3v1h-3zM31 16h2v1h-2zM0 17h2v1h-2zM4 17h2v1h-2zM15 17h4v1h-4zM20 17h1v1h-1zM23 17h3v1h-3zM27 17h1v1h-1zM31 17h1v1h-1zM3 18h1v1h-1zM5 18h2v1h-2zM8 18h4v1h-4zM15 18h2v1h-2zM18 18h1v1h-1zM20 18h1v1h-1zM22 18h4v1h-4zM28 18h2v1h-2zM31 18h1v1h-1zM0 19h1v1h-1zM3 19h3v1h-3zM9 19h1v1h-1zM11 19h1v1h-1zM13 19h1v1h-1zM16 19h6v1h-6zM25 19h1v1h-1zM27 19h1v1h-1zM31 19h1v1h-1zM0 20h3v1h-3zM6 20h4v1h-4zM11 20h1v1h-1zM13 20h2v1h-2zM17 20h1v1h-1zM21 20h2v1h-2zM24 20h1v1h-1zM26 20h1v1h-1zM28 20h2v1h-2zM31 20h1v1h-1zM0 21h2v1h-2zM5 21h1v1h-1zM7 21h1v1h-1zM9 21h1v1h-1zM11 21h1v1h-1zM14 21h1v1h-1zM17 21h2v1h-2zM21 21h3v1h-3zM25 21h1v1h-1zM27 21h1v1h-1zM31 21h1v1h-1zM3 22h2v1h-2zM6 22h4v1h-4zM11 22h1v1h-1zM13 22h1v1h-1zM15 22h2v1h-2zM18 22h3v1h-3zM23 22h2v1h-2zM2 23h2v1h-2zM5 23h1v1h-1zM7 23h1v1h-1zM9 23h1v1h-1zM12 23h3v1h-3zM19 23h4v1h-4zM24 23h1v1h-1zM28 23h1v1h-1zM0 24h2v1h-2zM6 24h2v1h-2zM9 24h1v1h-1zM11 24h1v1h-1zM14 24h4v1h-4zM20 24h3v1h-3zM24 24h5v1h-5zM32 24h1v1h-1zM8 25h3v1h-3zM12 25h1v1h-1zM14 25h1v1h-1zM20 25h2v1h-2zM23 25h2v1h-2zM28 25h3v1h-3zM0 26h7v1h-7zM8 26h2v1h-2zM11 26h4v1h-4zM19 26h1v1h-1zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h1v1h-1zM30 26h2v1h-2zM0 27h1v1h-1zM6 27h1v1h-1zM8 27h4v1h-4zM13 27h1v1h-1zM15 27h1v1h-1zM17 27h1v1h-1zM20 27h1v1h-1zM22 27h1v1h-1zM24 27h1v1h-1zM28 27h1v1h-1zM31 27h2v1h-2zM0 28h1v1h-1zM2 28h3v1h-3zM6 28h1v1h-1zM8 28h4v1h-4zM14 28h2v1h-2zM20 28h1v1h-1zM22 28h1v1h-1zM24 28h5v1h-5zM0 29h1v1h-1zM2 29h3v1h-3zM6 29h1v1h-1zM12 29h3v1h-3zM18 29h2v1h-2zM24 29h1v1h-1zM26 29h4v1h-4zM31 29h1v1h-1zM0 30h1v1h-1zM2 30h3v1h-3zM6 30h1v1h-1zM9 30h1v1h-1zM14 30h4v1h-4zM20 30h2v1h-2zM23 30h4v1h-4zM28 30h1v1h-1zM30 30h1v1h-1zM0 31h1v1h-1zM6 31h1v1h-1zM9 31h1v1h-1zM12 31h3v1h-3zM16 31h1v1h-1zM20 31h1v1h-1zM22 31h3v1h-3zM27 31h2v1h-2zM0 32h7v1h-7zM11 32h1v1h-1zM13 32h1v1h-1zM17 32h1v1h-1zM19 32h1v1h-1zM21 32h1v1h-1zM23 32h2v1h-2zM27 32h1v1h-1zM32 32h1v1h-1z"/></svg></div>
+  <p class="escanea">Escaneá y jugá en tu celular</p>
+  <p class="url">rygoslrst.github.io/fuga</p>
+
+  <div class="controles">
+    <div class="control"><b>Saltar</b><span>tocá la mitad izquierda</span></div>
+    <div class="control"><b>Deslizarte</b><span>tocá la mitad derecha</span></div>
+  </div>
+  <p class="nota">Girá el teléfono. No hace falta instalar nada.</p>
+
+  <p class="voto">Si te gustó, votá por FUGA</p>
+</main>
+</body>
+</html>
