@@ -1,0 +1,11 @@
+Acá van las capturas de pantalla de las licencias.
+
+Pendiente y URGENTE:
+  itch-kings-and-pigs.png  ->  captura de la línea "Creative Commons Zero v1.0
+  Universal" en https://pixelfrog-assets.itch.io/kings-and-pigs
+
+El zip de Kings and Pigs NO trae archivo de licencia adentro. Esta captura es
+la única prueba de que el arte es CC0. Sacala antes de seguir.
+
+Cuando bajes la música de Freesound, una captura por archivo (la licencia ahí
+es por sonido, no por pack).

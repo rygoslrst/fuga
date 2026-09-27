@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover: usa el ancho completo en iPhone con notch.
+     user-scalable=no + maximum-scale=1: sin zoom accidental durante la partida. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#141322">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Paso 0 — prueba de humo</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+  <div id="juego"></div>
+
+  <!-- Pantalla de "girá el teléfono". Es HTML y no una escena de Phaser a
+       propósito: así aparece aunque Phaser todavía no haya cargado. -->
+  <div id="gira">
+    <div class="icono">▭</div>
+    <p>Girá el teléfono</p>
+    <small>este juego se juega apaisado</small>
+  </div>
+
+  <!-- Phaser desde CDN, versión FIJA. Nunca uses "latest": el día del torneo
+       no querés que una actualización rompa el juego. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.90.0/phaser.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+
+</body>
+</html>

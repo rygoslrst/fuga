@@ -1,0 +1,71 @@
+/* ==========================================================================
+   estilo.css — la página existe sólo para sostener el canvas.
+   Todo acá es defensivo: que el navegador no haga nada que arruine el juego.
+   ========================================================================== */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;              /* nada de barras de scroll */
+  /* Mismo color que el fondo del juego: en un celular apaisado (19.5:9) el
+     canvas 16:9 deja franjas a los costados. Si el color coincide, se leen
+     como un marco y no como un error. Verificado en 812x375. */
+  background: #141322;
+  overscroll-behavior: none;     /* mata el "deslizar para recargar" en Android */
+  touch-action: none;            /* mata scroll, pinch y doble-toque-zoom */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;   /* mantener apretado no abre el menú de iOS */
+  -webkit-tap-highlight-color: transparent;  /* sin flash azul al tocar */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#juego {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#juego canvas { display: block; }
+
+/* --- pantalla de "girá el teléfono" ------------------------------------- */
+#gira {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #0b0a14;
+  color: #e8e6f5;
+  text-align: center;
+  padding: 24px;
+}
+
+#gira.visible { display: flex; }
+
+#gira .icono {
+  font-size: 84px;
+  line-height: 1;
+  color: #4dd8b0;
+  animation: girar 2s ease-in-out infinite;
+}
+
+#gira p { font-size: 22px; letter-spacing: 0.04em; }
+#gira small { font-size: 14px; color: #6f6b91; }
+
+@keyframes girar {
+  0%, 40%   { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(90deg); }
+}
+
+/* Si alguien tiene reducción de movimiento activada, no lo mareamos. */
+@media (prefers-reduced-motion: reduce) {
+  #gira .icono { animation: none; }
+}
