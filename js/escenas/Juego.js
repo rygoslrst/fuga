@@ -11,12 +11,14 @@ import { ANCHO, ALTO, VISTA, JUGADOR_X, RITMO, PERSEGUIDOR, PUNTOS, COLOR, DEBUG
 import { crearAtlas } from '../motor/Atlas.js';
 import { Generador } from '../juego/Generador.js';
 import { Mundo, ESTADO } from '../juego/Mundo.js';
-import { Jugador, FR } from '../juego/Jugador.js';
+import { Jugador } from '../juego/Jugador.js';
+import { FR } from '../motor/Sprites.js';
 import { Perseguidor } from '../juego/Perseguidor.js';
 import { Efectos } from '../juego/Efectos.js';
 import { Hud } from '../juego/Hud.js';
 
 const X_INICIO = 8 * COL;
+const GESTO = { UMBRAL_PX: 22, TOQUE_MS: 100 };
 const NOMBRE_TRUCO = { valla: 'VALLA', barrida: 'BARRIDA', vuelo: 'VUELO', voltereta: 'VOLTERETA', subida: 'SUBIDA' };
 const limitar = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -41,6 +43,7 @@ export class Juego extends Phaser.Scene {
   init(datos) {
     this.audio = datos.audio;
     this.ui = datos.ui;
+    this.imagenPersonaje = datos.imagenPersonaje;
   }
 
   create() {
@@ -49,7 +52,7 @@ export class Juego extends Phaser.Scene {
     this.generador = new Generador();
     this.mundo = new Mundo(this);
     this.efectos = new Efectos(this);
-    this.jugador = new Jugador(this, this.mundo, this.audio, this.meta);
+    this.jugador = new Jugador(this, this.mundo, this.audio);
     this.perseguidor = new Perseguidor(this, this.mundo, this.meta);
     this.hud = new Hud(this);
 
@@ -73,7 +76,7 @@ export class Juego extends Phaser.Scene {
   //  Preparación
   // --------------------------------------------------------------------------
   prepararAtlas() {
-    const { canvas, marcos, meta, xmlFuente } = crearAtlas();
+    const { canvas, marcos, meta, xmlFuente } = crearAtlas(this.imagenPersonaje);
     const tex = this.textures.addCanvas('atlas', canvas);
     for (const m of marcos) tex.add(m.nombre, 0, m.x, m.y, m.w, m.h);
     this.meta = meta;
@@ -130,19 +133,46 @@ export class Juego extends Phaser.Scene {
   }
 
   // --------------------------------------------------------------------------
-  //  Entrada: eventos nativos, no los de Phaser, para tomar la hora exacta del
-  //  toque (Phaser puede procesarlos recién en el cuadro siguiente).
+  //  Entrada
   // --------------------------------------------------------------------------
+  //  Celular: deslizar el dedo hacia ARRIBA salta, hacia ABAJO se barre, y un
+  //  toque en cualquier lado también salta. El dedo va para donde va el
+  //  personaje: no hace falta explicarlo. El toque suelto que salta es la red
+  //  para el que no sabe nada: tocando, ya juega.
+  //  Computadora: ↑ / espacio saltan, ↓ se barre (y el mouse funciona igual
+  //  que el dedo).
+  //
+  //  Se usan eventos nativos y no los de Phaser, para tomar la hora exacta.
   conectarEntrada() {
     const canvas = this.game.canvas;
+    this.gestos = [];   // dedos apoyados: { id, x, y, t, hecho }
+
     canvas.addEventListener('pointerdown', e => {
       if (e.pointerType === 'touch') this.esTactil = true;
       if (this.estado !== 'jugando' || performance.now() < this.ignorarHasta) return;
-      const r = canvas.getBoundingClientRect();
-      const t = this.audio.ahora();
-      if ((e.clientX - r.left) / r.width < 0.5) this.jugador.pedirSalto(t);
-      else this.jugador.pedirDesliz(t);
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* nada */ }
+      this.gestos.push({ id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), hecho: false });
     });
+    canvas.addEventListener('pointermove', e => {
+      const g = this.gesto(e.pointerId);
+      if (!g || g.hecho || this.estado !== 'jugando') return;
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (Math.abs(dy) >= GESTO.UMBRAL_PX && Math.abs(dy) > Math.abs(dx) * 0.6) {
+        g.hecho = true;
+        const t = this.audio.ahora();
+        if (dy < 0) this.jugador.pedirSalto(t);
+        else this.jugador.pedirDesliz(t);
+      }
+    });
+    const soltar = e => {
+      const g = this.gesto(e.pointerId);
+      if (!g) return;
+      this.gestos.splice(this.gestos.indexOf(g), 1);
+      if (!g.hecho && e.type === 'pointerup' && this.estado === 'jugando') this.jugador.pedirSalto(this.audio.ahora());
+    };
+    canvas.addEventListener('pointerup', soltar);
+    canvas.addEventListener('pointercancel', soltar);
+
     window.addEventListener('keydown', e => {
       if (e.repeat || this.estado !== 'jugando' || performance.now() < this.ignorarHasta) return;
       const t = this.audio.ahora();
@@ -155,6 +185,23 @@ export class Juego extends Phaser.Scene {
           this.pausar(); break;
       }
     });
+  }
+
+  gesto(id) {
+    for (const g of this.gestos) if (g.id === id) return g;
+    return null;
+  }
+
+  // Un dedo que se apoya y no se mueve cuenta como toque (salto) a los 100 ms,
+  // sin esperar a que lo levante: así tocar no se siente lento.
+  revisarGestos() {
+    const ahora = performance.now();
+    for (const g of this.gestos) {
+      if (!g.hecho && ahora - g.t >= GESTO.TOQUE_MS) {
+        g.hecho = true;
+        this.jugador.pedirSalto(this.audio.ahora());
+      }
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -191,6 +238,7 @@ export class Juego extends Phaser.Scene {
     if (this.estado !== 'titulo') this.reiniciarMundo(false);
     this.estado = 'jugando';
     this.ignorarHasta = performance.now() + 150;
+    this.gestos.length = 0;
     this.tInicio = this.audio.iniciarCarrera(RITMO.BPM_INICIAL);
     this.tPrev = this.tInicio;
     this.congeladoHasta = 0;
@@ -214,6 +262,7 @@ export class Juego extends Phaser.Scene {
     if (this.estado !== 'pausa') return;
     await this.audio.reanudar();
     this.jugador.pedidoSalto = this.jugador.pedidoDesliz = -9;
+    this.gestos.length = 0;
     this.ignorarHasta = performance.now() + 150;
     this.tPrev = this.audio.ahora();
     this.estado = 'jugando';
@@ -237,7 +286,6 @@ export class Juego extends Phaser.Scene {
   cuadroTitulo(dt) {
     const t = performance.now() / 1000;
     this.jugador.dibujar(t, 0);
-    this.jugador.dibujarBufanda(t, dt);
     this.perseguidor.actualizar(X_INICIO, this.ventaja, FR.quieto[Math.floor(t * 3.2) & 3], t);
     this.efectos.actualizar(dt, 0);
   }
@@ -252,6 +300,7 @@ export class Juego extends Phaser.Scene {
     // tramo en pasitos, así que no se atraviesa nada.
     if (t < this.congeladoHasta) return;
 
+    this.revisarGestos();
     this.jugador.paso(this.tPrev, t, this.xEn);
     this.tPrev = t;
     if (this.estado !== 'jugando') return;                    // murió en este cuadro
@@ -281,7 +330,6 @@ export class Juego extends Phaser.Scene {
     const c = this.jugador.combo;
     this.audio.intensidad = c >= 14 ? 4 : c >= 9 ? 3 : c >= 5 ? 2 : c >= 2 ? 1 : 0;
 
-    this.jugador.dibujarBufanda(t, dt);
     this.efectos.actualizar(dt, peligro);
     this.fondo();
 
@@ -296,7 +344,6 @@ export class Juego extends Phaser.Scene {
     const t = performance.now() / 1000;
     this.jugador.actualizarMuerte(dt);
     this.jugador.dibujar(t, 0);
-    this.jugador.dibujarBufanda(t, dt);
     if (this.causa === 'atrapado') {
       this.ventaja = Math.max(-18, this.ventaja - 260 * dt);
       this.perseguidor.actualizar(this.jugador.muerte.x, this.ventaja, FR.alcanzar[Math.floor(t * 9) & 1], t);
@@ -383,11 +430,11 @@ export class Juego extends Phaser.Scene {
       else if (this.mundo.nivelEnCol(c) > this.mundo.nivelEnCol(c - 1) && this.mundo.nivelEnCol(c - 1) >= 0) tipo = 'subir';
     }
     if (!tipo) { this.hud.ocultarPista(); return; }
-    const salto = this.esTactil ? 'TOCÁ LA MITAD IZQUIERDA' : 'ESPACIO O ↑';
-    const desliz = this.esTactil ? 'TOCÁ LA MITAD DERECHA' : '↓ O S';
+    const salto = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ARRIBA ↑' : 'ESPACIO O ↑';
+    const desliz = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ABAJO ↓' : '↓ O S';
     const TXT = {
       saltar: ['¡SALTÁ!', salto], hueco: ['¡SALTÁ EL HUECO!', salto],
-      subir: ['¡SALTÁ PARA SUBIR!', salto], deslizar: ['¡DESLIZATE!', desliz],
+      subir: ['¡SALTÁ PARA SUBIR!', salto], deslizar: ['¡BARRETE!', desliz],
     };
     this.hud.pistaVisible(TXT[tipo][0], TXT[tipo][1]);
   }

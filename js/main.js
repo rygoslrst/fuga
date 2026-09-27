@@ -93,10 +93,13 @@ async function arrancar() {
     return;
   }
 
-  // La tipografía tiene que estar cargada antes de hornearla en el atlas.
-  try {
-    await Promise.race([document.fonts.load('64px Anton'), new Promise(r => setTimeout(r, 3000))]);
-  } catch (e) { /* seguimos con la de respaldo */ }
+  // La tipografía y la hoja del corredor tienen que estar cargadas antes de
+  // armar el atlas. Se piden las dos a la vez.
+  const fuente = Promise.race([document.fonts.load('64px Anton'), new Promise(r => setTimeout(r, 3000))])
+    .catch(() => { /* seguimos con la de respaldo */ });
+  const imagenPersonaje = new Image();
+  imagenPersonaje.src = 'assets/aventurero.png';
+  await Promise.all([fuente, imagenPersonaje.decode()]);
 
   const audio = new Audio();
   const ui = new UI(audio);
@@ -115,7 +118,7 @@ async function arrancar() {
     input: { keyboard: false, mouse: false, touch: false, gamepad: false },   // eventos nativos
     banner: false,
   });
-  juego.scene.add('Juego', Juego, true, { audio, ui });
+  juego.scene.add('Juego', Juego, true, { audio, ui, imagenPersonaje });
 
   const escena = () => juego.scene.getScene('Juego');
   vigilarOrientacion(escena);

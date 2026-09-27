@@ -9,9 +9,9 @@ nada. Hecho para el torneo del colegio.
 
 | | Celular | Computadora |
 |---|---|---|
-| Saltar | mitad izquierda de la pantalla | ↑, espacio, W o Z |
-| Deslizarse | mitad derecha | ↓, S o X |
-| Voltereta | deslizarse en el aire, antes de caer | ↓ en el aire |
+| Saltar | deslizá el dedo hacia arriba, o tocá en cualquier lado | ↑, espacio, W o Z |
+| Barrerse | deslizá el dedo hacia abajo | ↓, S o X |
+| Voltereta | deslizá hacia abajo en el aire, antes de caer | ↓ en el aire |
 | Pausa | — (se pausa sola al salir) | Esc o P |
 | Sonido | botón arriba a la derecha | M |
 
@@ -50,7 +50,8 @@ números vienen comentados. Lo más probable que quieras ajustar:
 |---|---|
 | agregar o cambiar tramos de nivel | `js/datos/segmentos.js` |
 | cambiar la curva de dificultad | `js/juego/Generador.js` → `objetivo()` |
-| cambiar poses o animaciones del corredor | `js/motor/Esqueleto.js` |
+| cambiar qué animación usa cada acrobacia | `herramientas/armar_sprites.py` → tabla `POSES` |
+| cambiar los gestos (sensibilidad del deslizamiento) | `js/escenas/Juego.js` → `GESTO` |
 | cambiar la música | `js/motor/Audio.js` → `PROGRESION`, `MELODIA` |
 
 ### Agregar un tramo de nivel
@@ -65,16 +66,28 @@ navegador (F12) qué regla rompió.
 
 - **Phaser 3.90** en `vendor/`, sin build ni npm. Va dentro del repo para no
   depender de ningún CDN el día del torneo.
-- **Nada de imágenes ni sonidos de terceros.** El corredor es un esqueleto de 10
-  huesos animado por código; la ciudad, los obstáculos, la música y los efectos
-  también se generan al cargar. La única pieza externa es la tipografía Anton
-  (licencia OFL, en `fuentes/`).
+- **El corredor** es el "Animated Pixel Adventurer" de rvros. `assets/aventurero.png`
+  tiene sólo los 36 cuadros que se usan; el perseguidor es el mismo personaje
+  pintado de rojo sólido (`setTintFill`). La ciudad, los obstáculos, la música y
+  los efectos se generan con código al cargar.
 - **Rendimiento.** Todo se dibuja desde una sola textura generada al arrancar; no
   se crea ni se destruye ningún objeto durante la partida (todo sale de pools);
   el puntaje usa una fuente bitmap para no re-subir texturas en cada cuadro.
 - **Reloj.** El mundo avanza según el pulso de la música, que se programa sobre el
   reloj del audio: música y juego no se pueden desfasar. Un salto dura siempre
   exactamente un pulso, a cualquier cantidad de cuadros por segundo.
+
+### Cambiar una animación
+
+`herramientas/armar_sprites.py` elige qué cuadro del pack va en cada pose y
+genera `assets/aventurero.png` y `js/datos/aventurero.js`. Necesita los zips del
+pack, que **no** están en el repo (la licencia no deja redistribuir el pack):
+bajalos gratis de https://rvros.itch.io/animated-pixel-hero (`Adventurer-1.5.zip`
+y `Adventurer-Hand-Combat.zip`), cambiá la tabla `POSES` y corré:
+
+```
+python herramientas/armar_sprites.py Adventurer-1.5.zip Adventurer-Hand-Combat.zip
+```
 
 ## Publicar cambios
 

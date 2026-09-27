@@ -1,16 +1,16 @@
 // ============================================================================
 //  Atlas.js — TODA la gráfica del juego en una sola textura, generada al cargar
 // ----------------------------------------------------------------------------
-//  Personaje, obstáculos, ciudad de fondo, cielo, partículas y tipografía se
-//  dibujan con código en un canvas oculto. Con una única textura la placa de
+//  Obstáculos, ciudad de fondo, cielo, partículas y tipografía se dibujan con
+//  código en un canvas oculto; el corredor se copia de su hoja de sprites. Con una única textura la placa de
 //  video dibuja la escena entera en muy pocas llamadas: es la decisión que más
 //  rinde en un celular de gama baja.
 //
-//  Todo se dibuja en BLANCO y se colorea en el juego con tint, salvo el cielo,
-//  que ya viene con su degradé.
+//  Todo se dibuja en BLANCO y se colorea en el juego con tint, salvo el cielo
+//  (que ya viene con su degradé) y el corredor (que tiene sus propios colores).
 // ============================================================================
 
-import { cuadrosDelPersonaje } from './Esqueleto.js';
+import { cuadrosDelPersonaje } from './Sprites.js';
 import { COLOR } from '../config.js';
 
 // roundRect no existe en Safari anterior a la 16: en esos teléfonos, esquinas rectas.
@@ -274,8 +274,8 @@ function bloqueFuente() {
 // ----------------------------------------------------------------------------
 //  Empaquetado en estantes y dibujo final
 // ----------------------------------------------------------------------------
-export function crearAtlas() {
-  const piezas = [...cuadrosDelPersonaje(), ...piezasSueltas(), bloqueFuente()];
+export function crearAtlas(imagenPersonaje) {
+  const piezas = [...cuadrosDelPersonaje(imagenPersonaje), ...piezasSueltas(), bloqueFuente()];
 
   // Las más altas primero: desperdicia menos espacio.
   const orden = [...piezas].sort((a, b) => b.h - a.h || b.w - a.w);
@@ -305,8 +305,11 @@ export function crearAtlas() {
     p.dibujar(ctx, p.x, p.y);
     ctx.restore();
     const i = p.interior || 0;
-    marcos.push({ nombre: p.nombre, x: p.x + i, y: p.y + i, w: p.w - 2 * i, h: p.h - 2 * i });
-    if (p.meta) meta[p.nombre] = p.meta;
+    // Una misma región puede tener varios nombres (un cuadro que usan dos poses).
+    for (const nombre of p.alias || [p.nombre]) {
+      marcos.push({ nombre, x: p.x + i, y: p.y + i, w: p.w - 2 * i, h: p.h - 2 * i });
+    }
+    if (p.metas) Object.assign(meta, p.metas);
     if (p.xml) xmlFuente = p.xml;
   }
 

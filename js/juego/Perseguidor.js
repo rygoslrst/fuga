@@ -1,17 +1,17 @@
 // ============================================================================
 //  Perseguidor.js — el que te sigue
 // ----------------------------------------------------------------------------
-//  No tiene inteligencia ni física propia: pisa exactamente por donde pisaste
-//  vos, con tus mismas poses, unos píxeles más atrás. Eso garantiza que nunca
-//  se caiga en un hueco que vos pasaste, y queda inquietante: te copia.
+//  Es tu sombra: el mismo personaje pintado de rojo sólido. No tiene
+//  inteligencia ni física propia: pisa exactamente por donde pisaste vos, con
+//  tus mismas poses, unos píxeles más atrás. Nunca se cae en un hueco que vos
+//  pasaste, y queda inquietante: te copia.
 //
 //  Lo único que importa es la VENTAJA (en la escena): la distancia que te saca.
 //  Cada choque la achica; correr limpio y los trucos la agrandan.
 // ============================================================================
 
 import { PERSEGUIDOR, COLOR, RITMO, PX_POR_COLUMNA as COL, yDeNivel } from '../config.js';
-import { CUADRO } from '../motor/Esqueleto.js';
-import { FR } from './Jugador.js';
+import { CUADRO, FR } from '../motor/Sprites.js';
 
 const N = 512;
 const ORIGEN_X = CUADRO.ANCLA_X / CUADRO.W;
@@ -27,8 +27,10 @@ export class Perseguidor {
     this.mundo = mundo;
     this.meta = meta;
     const s = PERSEGUIDOR.ESCALA;
+    // setTintFill: reemplaza los colores del sprite por uno solo y conserva la
+    // forma. El mismo corredor, convertido en silueta roja.
     this.sprite = escena.add.image(0, 0, 'atlas', FR.correr[0])
-      .setOrigin(ORIGEN_X, ORIGEN_Y).setScale(s).setTint(COLOR.PERSEGUIDOR).setDepth(8);
+      .setOrigin(ORIGEN_X, ORIGEN_Y).setScale(s).setTintFill(COLOR.PERSEGUIDOR).setDepth(8);
     this.halo = escena.add.image(0, 0, 'atlas', 'brillo')
       .setTint(COLOR.OJOS).setBlendMode(Phaser.BlendModes.ADD).setScale(0.55).setDepth(8.4);
     this.ojo = escena.add.image(0, 0, 'atlas', 'punto').setTint(0xffe8e8).setScale(0.42).setDepth(8.5);
@@ -76,7 +78,7 @@ export class Perseguidor {
     if (encontrado < 0) {
       const sup = this.mundo.superficie(xp);
       y = sup === null ? yDeNivel(0) : sup;
-      frame = FR.correr[Math.floor((xp / RITMO.PX_POR_PULSO) * 8) & 7];
+      frame = this.correrEn(xp);
     } else {
       const sig = (encontrado + 1) % N;
       const hayCabeza = sig !== this.cabeza;
@@ -105,24 +107,29 @@ export class Perseguidor {
       if (y > arco) { y = arco; if (!forzado) { frame = FR.vuelo[1]; ang = 0; } }
     } else if (y > sup) {
       y = sup;
-      if (!forzado && frame !== FR.bola) frame = FR.correr[Math.floor((xp / RITMO.PX_POR_PULSO) * 8) & 7];
+      if (!forzado) frame = this.correrEn(xp);
     }
 
-    const s = this.sprite, e = PERSEGUIDOR.ESCALA;
-    if (frame === FR.bola) {
-      const mb = this.meta[FR.bola];
-      s.setFrame(frame).setOrigin(mb.centroX / CUADRO.W, mb.centroY / CUADRO.H).setAngle(ang)
-       .setPosition(xp, y - (CUADRO.ANCLA_Y - mb.centroY) * e);
-      this.ojo.setVisible(false);
-      this.halo.setVisible(false);
-      return;
-    }
-    s.setFrame(frame).setOrigin(ORIGEN_X, ORIGEN_Y).setAngle(0).setPosition(xp, y);
+    const e = PERSEGUIDOR.ESCALA;
+    this.sprite.setFrame(frame).setPosition(xp, y);
 
-    // Los ojos: lo que hace que se lo reconozca como amenaza de un vistazo.
+    // El ojo: lo que hace que se lo reconozca como amenaza de un vistazo. En
+    // las poses dadas vuelta (voltereta, barrida) no se muestra.
     const m = this.meta[frame];
-    const ex = xp + (m.cabezaX + 3.5) * e, ey = y + (m.cabezaY - 1) * e;
-    this.ojo.setVisible(true).setPosition(ex, ey);
-    this.halo.setVisible(true).setPosition(ex, ey).setAlpha(0.7 + 0.3 * Math.sin(t * 10));
+    const conOjos = !m.sinOjos;
+    this.ojo.setVisible(conOjos);
+    this.halo.setVisible(conOjos);
+    if (conOjos) {
+      const ex = xp + (m.cabezaX + 2) * e, ey = y + m.cabezaY * e;
+      this.ojo.setPosition(ex, ey);
+      this.halo.setPosition(ex, ey).setAlpha(0.7 + 0.3 * Math.sin(t * 10));
+    }
+  }
+
+  // Cuadro de carrera según su propia posición: un ciclo cada pulso, como vos.
+  correrEn(x) {
+    const n = FR.correr.length;
+    const fase = x / RITMO.PX_POR_PULSO;
+    return FR.correr[Math.floor((fase - Math.floor(fase)) * n) % n];
   }
 }

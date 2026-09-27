@@ -9,59 +9,39 @@
 //  avanzar 30 px de golpe y atravesar una caja sin tocarla. Por eso cada cuadro
 //  se simula en pasitos de 8 px: la colisión nunca se saltea.
 //
-//  ACROBACIAS. Dos botones, pero el salto cambia según lo que tengas enfrente:
-//  caja adelante = salto de valla; hueco adelante = vuelo. Apretar deslizar en
-//  el aire = voltereta al caer. Sin gestos, sin más botones.
+//  ACROBACIAS. Dos acciones, pero el salto cambia según lo que tengas enfrente:
+//  caja adelante = voltereta sobre la caja; hueco adelante = vuelo. Barrerse
+//  en el aire = caés rodando.
 // ============================================================================
 
 import { SALTO, DESLIZ, TERRENO, PX_POR_COLUMNA as COL, RITMO, PERSEGUIDOR, PUNTOS, COLOR,
          fisicaSalto, segPorPulso, yDeNivel } from '../config.js';
-import { CUADRO } from '../motor/Esqueleto.js';
+import { CUADRO, ALTURAS, FR } from '../motor/Sprites.js';
 import { ESTADO } from './Mundo.js';
 
-const HB = { MEDIO: 12, ALTO: 76, BAJO: 32 };          // caja de colisión del corredor
+// Caja de colisión del corredor: un poco más chica que el dibujo (de pie mide
+// 90 px, barriéndose 45). Rozar algo con el borde del dibujo no es un choque:
+// eso es lo que se siente justo.
+const HB = { MEDIO: 13, ALTO: ALTURAS.DE_PIE - 12, BAJO: 32 };
 const ORIGEN_X = CUADRO.ANCLA_X / CUADRO.W;
 const ORIGEN_Y = CUADRO.ANCLA_Y / CUADRO.H;
-const BUFANDA = { PUNTOS: 9, LARGO: 9 };   // ~72 px: se tiene que ver en un celular
-
-// Nombres de cuadro precalculados: armar 'correr_' + n en cada cuadro crea
-// basura para el recolector, y en un celular eso son tirones.
-const nombres = (base, n) => Array.from({ length: n }, (_, i) => `${base}_${i}`);
-export const FR = {
-  correr: nombres('correr', 8), quieto: nombres('quieto', 4), salto: nombres('salto', 3),
-  caida: nombres('caida', 2), valla: nombres('valla', 5), vuelo: nombres('vuelo', 4),
-  desliz: nombres('desliz', 4), trepa: nombres('trepa', 3), tropiezo: nombres('tropiezo', 3),
-  atrapado: nombres('atrapado', 2), cayendo: nombres('cayendo', 2), alcanzar: nombres('alcanzar', 2),
-  bola: 'bola_0', aterriza: 'aterriza_0',
-};
 
 const limitar = (v, a, b) => (v < a ? a : v > b ? b : v);
 const caja = [0, 0, 0, 0];
 
 export class Jugador {
-  constructor(escena, mundo, audio, meta) {
+  constructor(escena, mundo, audio) {
     this.escena = escena;
     this.mundo = mundo;
     this.audio = audio;
-    this.meta = meta;
-    this.metaBola = meta[FR.bola];
 
+    // Sin tint: el corredor muestra sus propios colores (y su bufanda roja).
     this.sprite = escena.add.image(0, 0, 'atlas', FR.quieto[0])
-      .setOrigin(ORIGEN_X, ORIGEN_Y).setTint(COLOR.JUGADOR).setDepth(10);
-
-    // La bufanda: la firma del corredor. Una cadena de puntos que arrastra el
-    // cuello; 6 sprites en total, cuesta nada y se ve en cualquier pantalla.
-    this.puntosBufanda = [];
-    this.trozos = [];
-    for (let i = 0; i < BUFANDA.PUNTOS; i++) this.puntosBufanda.push({ x: 0, y: 0 });
-    for (let i = 0; i < BUFANDA.PUNTOS - 1; i++) {
-      this.trozos.push(escena.add.image(0, 0, 'atlas', 'blanco').setOrigin(0, 0.5)
-        .setTint(COLOR.BUFANDA).setDepth(9.5));
-    }
+      .setOrigin(ORIGEN_X, ORIGEN_Y).setDepth(10);
 
     this.a = { t0: 0, y0: 0, v0: 0, g: 1, T: 0.5, tipo: 'salto' };
     this.frame = FR.quieto[0];
-    this.angulo = 0;
+    this.angulo = 0;          // el perseguidor lo lee; con sprites siempre es 0
   }
 
   reiniciar(x) {
@@ -88,14 +68,8 @@ export class Jugador {
     this.pedidoSalto = -9;
     this.pedidoDesliz = -9;
     this.muerte = null;
-    this.sprite.setAlpha(1).setAngle(0).setOrigin(ORIGEN_X, ORIGEN_Y);
+    this.sprite.setAlpha(1);
     this.dibujar(0, 0);
-    const m = this.meta[this.frame];
-    for (let i = 0; i < BUFANDA.PUNTOS; i++) {
-      const p = this.puntosBufanda[i];
-      p.x = this.x + m.cuelloX - i * 2;
-      p.y = this.y + m.cuelloY + i * BUFANDA.LARGO;
-    }
   }
 
   empezar() { this.estado = 'suelo'; }
@@ -393,23 +367,24 @@ export class Jugador {
   // --------------------------------------------------------------------------
   dibujar(t, beat) {
     let frame = FR.correr[0];
-    let bola = false, ang = 0;
     let yDib = this.y, xDib = this.x;
+    const nCorrer = FR.correr.length;
 
     switch (this.estado) {
       case 'quieto':
-        frame = FR.quieto[Math.floor(performance.now() / 280) & 3];
+        frame = FR.quieto[Math.floor(performance.now() / 160) % FR.quieto.length];
         break;
       case 'suelo': {
         const eg = t - this.tGolpe;
         if (eg < 0.3) frame = FR.tropiezo[limitar(Math.floor(eg / 0.1), 0, 2)];
-        else if (t - this.tAterrizo < 0.07) frame = FR.aterriza;
-        else frame = FR.correr[Math.floor((beat - Math.floor(beat)) * 8) & 7];
+        else if (t - this.tAterrizo < 0.07) frame = FR.aterriza[0];
+        // Un ciclo de carrera por pulso: los pies caen con la música.
+        else frame = FR.correr[Math.floor((beat - Math.floor(beat)) * nCorrer) % nCorrer];
         break;
       }
       case 'desliz': {
         const e = t - this.tDesliz;
-        if (this.voltereta && e < 0.36) { bola = true; ang = (e / 0.36) * 360; }
+        if (this.voltereta && e < 0.36) frame = FR.voltereta[Math.floor(e / 0.09) & 3];
         else if (e < 0.07) frame = FR.desliz[0];
         else if (this.durDesliz - e < 0.08) frame = FR.desliz[3];
         else frame = FR.desliz[1 + ((Math.floor(e / 0.07)) & 1)];
@@ -418,16 +393,16 @@ export class Jugador {
       case 'aire': {
         const a = this.a, e = t - a.t0, p = e / a.T;
         if (this.colgando) {
-          frame = FR.cayendo[Math.floor(t * 9) & 1];
+          frame = FR.cayendo[Math.floor(t * 6) & 1];
         } else if (this.volteretaPedida) {
-          bola = true;
-          ang = (t - this.tVolteretaPedida) * 1100;
+          // Pidió rodar: gira en el aire para que se vea que el toque entró.
+          frame = FR.voltereta[Math.floor((t - this.tVolteretaPedida) / 0.08) & 3];
         } else if (a.tipo === 'caida' || p > 1.15) {
-          frame = e > 0.45 ? FR.cayendo[Math.floor(t * 8) & 1] : (e < 0.1 ? FR.caida[1] : FR.caida[0]);
+          frame = e > 0.45 ? FR.cayendo[Math.floor(t * 6) & 1] : FR.caida[Math.floor(t * 10) & 1];
         } else if (a.tipo === 'valla') frame = FR.valla[limitar(Math.floor(p * 5), 0, 4)];
         else if (a.tipo === 'vuelo') frame = FR.vuelo[limitar(Math.floor(p * 4), 0, 3)];
         else frame = p < 0.12 ? FR.salto[0] : p < 0.3 ? FR.salto[1] : p < 0.62 ? FR.salto[2]
-                   : p < 0.85 ? FR.caida[0] : FR.caida[1];
+                   : FR.caida[Math.floor(t * 10) & 1];
         break;
       }
       case 'trepa':
@@ -437,56 +412,16 @@ export class Jugador {
         const m = this.muerte;
         xDib = m.x;
         yDib = m.y;
-        frame = m.causa === 'atrapado' ? FR.atrapado[m.t > 0.18 ? 1 : 0] : FR.cayendo[Math.floor(m.t * 9) & 1];
+        frame = m.causa === 'atrapado'
+          ? FR.atrapado[Math.min(FR.atrapado.length - 1, Math.floor(m.t / 0.09))]
+          : FR.cayendo[Math.floor(m.t * 6) & 1];
         break;
       }
     }
 
-    const s = this.sprite;
-    if (bola) {
-      const mb = this.metaBola;
-      s.setFrame(FR.bola).setOrigin(mb.centroX / CUADRO.W, mb.centroY / CUADRO.H).setAngle(ang);
-      s.setPosition(xDib, yDib - (CUADRO.ANCLA_Y - mb.centroY));
-      this.frame = FR.bola;
-    } else {
-      if (this.frame === FR.bola) s.setOrigin(ORIGEN_X, ORIGEN_Y).setAngle(0);
-      s.setFrame(frame).setPosition(xDib, yDib);
-      this.frame = frame;
-    }
-    this.angulo = bola ? ang : 0;
-    s.setAlpha(this.estado !== 'muerto' && t < this.invulnerableHasta ? ((Math.floor(t * 16) & 1) ? 0.35 : 1) : 1);
-  }
-
-  // Posición del cuello en el mundo (para la bufanda)
-  cuello(fuera) {
-    if (this.frame === FR.bola) {
-      fuera.x = this.sprite.x; fuera.y = this.sprite.y;
-    } else {
-      const m = this.meta[this.frame];
-      fuera.x = this.sprite.x + m.cuelloX;
-      fuera.y = this.sprite.y + m.cuelloY;
-    }
-    return fuera;
-  }
-
-  dibujarBufanda(t, dt) {
-    const p = this.puntosBufanda;
-    this.cuello(p[0]);
-    for (let i = 1; i < p.length; i++) {
-      const q = p[i], prev = p[i - 1];
-      q.y += 40 * dt + Math.sin(t * 17 + i * 0.9) * 0.9;
-      const dx = q.x - prev.x, dy = q.y - prev.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      q.x = prev.x + (dx / d) * BUFANDA.LARGO;
-      q.y = prev.y + (dy / d) * BUFANDA.LARGO;
-    }
-    for (let i = 0; i < this.trozos.length; i++) {
-      const a = p[i], b = p[i + 1];
-      this.trozos[i].setPosition(a.x, a.y)
-        .setRotation(Math.atan2(b.y - a.y, b.x - a.x))
-        .setDisplaySize(BUFANDA.LARGO + 1.5, 8 - i * 0.7)
-        .setAlpha(this.sprite.alpha);
-    }
+    this.sprite.setFrame(frame).setPosition(xDib, yDib);
+    this.frame = frame;
+    this.sprite.setAlpha(this.estado !== 'muerto' && t < this.invulnerableHasta ? ((Math.floor(t * 16) & 1) ? 0.35 : 1) : 1);
   }
 
   actualizarMuerte(dt) {
