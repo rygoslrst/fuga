@@ -1,117 +1,128 @@
 // ============================================================================
-//  main.js  —  configuración de Phaser y arranque
+//  main.js — arranque
 // ============================================================================
 
-import { PANTALLA, COLORES } from './config/ajustes.js';
-import { Paso0 } from './escenas/Paso0.js';
+import { ALTO, DEBUG, VISTA, anchoParaPantalla } from './config.js';
+import { Audio } from './motor/Audio.js';
+import { UI } from './ui.js';
+import { Juego } from './escenas/Juego.js';
 
 // ----------------------------------------------------------------------------
-//  1) Que el navegador no se coma los toques
+//  Que el navegador no se coma los toques: sin esto, arrastrar el dedo hace
+//  scroll, dos toques rápidos hacen zoom y deslizar desde arriba recarga la
+//  página en medio de una partida. El panel de créditos sí puede desplazarse.
 // ----------------------------------------------------------------------------
-//  Sin esto, en el celular arrastrar el dedo hace scroll, dos toques rápidos
-//  hacen zoom, y deslizar desde arriba recarga la página en medio de una
-//  partida. touch-action:none en el CSS cubre casi todo; esto tapa el resto.
 function blindarGestos() {
-  const parar = e => e.preventDefault();
+  const enPanel = e => e.target && e.target.closest && e.target.closest('.desplazable');
+  const parar = e => { if (!enPanel(e)) e.preventDefault(); };
   document.addEventListener('touchmove', parar, { passive: false });
-  document.addEventListener('gesturestart', parar, { passive: false });  // pinch en iOS
+  document.addEventListener('gesturestart', parar, { passive: false });
   document.addEventListener('gesturechange', parar, { passive: false });
   document.addEventListener('dblclick', parar, { passive: false });
-  document.addEventListener('contextmenu', parar);                        // mantener apretado
-  // Evita el zoom por doble toque en iOS, que touch-action no siempre frena.
+  document.addEventListener('contextmenu', e => e.preventDefault());
   let ultimo = 0;
   document.addEventListener('touchend', e => {
     const ahora = Date.now();
-    if (ahora - ultimo < 320) e.preventDefault();
+    if (ahora - ultimo < 320 && !enPanel(e) && !e.target.closest('.boton')) e.preventDefault();
     ultimo = ahora;
   }, { passive: false });
 }
 
+function hayWebGL() {
+  try {
+    const c = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+  } catch (e) { return false; }
+}
+
 // ----------------------------------------------------------------------------
-//  2) Pantalla de "girá el teléfono"
+//  Girá el teléfono: no se puede forzar la rotación desde el navegador (en
+//  iPhone ni con pantalla completa). Se le pide al jugador y se pausa.
 // ----------------------------------------------------------------------------
-//  No se puede FORZAR la rotación desde el navegador sin pantalla completa, y
-//  en iOS no se puede ni con eso. Así que se le pide al jugador, y mientras
-//  tanto se pausa el juego.
-function vigilarOrientacion(juego) {
+function vigilarOrientacion(obtenerEscena) {
   const aviso = document.getElementById('gira');
+  const tactil = window.matchMedia('(pointer: coarse)').matches;
   const revisar = () => {
-    const vertical = window.innerHeight > window.innerWidth;
-    aviso.classList.toggle('visible', vertical);
-    if (!juego.scene.scenes.length) return;
-    const escena = juego.scene.scenes[0];
-    if (vertical && !escena.scene.isPaused()) escena.scene.pause();
-    if (!vertical && escena.scene.isPaused()) escena.scene.resume();
+    const vertical = tactil && window.innerHeight > window.innerWidth;
+    aviso.hidden = !vertical;
+    const e = obtenerEscena();
+    if (vertical && e && e.estado === 'jugando') e.pausar();
   };
   window.addEventListener('resize', revisar);
   window.addEventListener('orientationchange', () => setTimeout(revisar, 250));
   revisar();
 }
 
-// ----------------------------------------------------------------------------
-//  3) Cambio de pestaña / apagar la pantalla
-// ----------------------------------------------------------------------------
-//  Verificado en el paso 0: al ocultarse la pestaña el navegador congela
-//  requestAnimationFrame, pero el AudioContext sigue avanzando. Sin esto, el
-//  jugador que atiende un mensaje vuelve con la música adelantada respecto del
-//  nivel. Congelamos los dos relojes juntos.
-function vigilarVisibilidad(juego) {
+// Al girar el teléfono (o cambiar el tamaño de la ventana) el mundo se
+// ensancha o se angosta para llenar la pantalla. Sólo en horizontal: en
+// vertical está la pantalla de "girá el teléfono".
+function vigilarAncho(juego, obtenerEscena) {
+  let pendiente = 0;
+  const revisar = () => {
+    if (window.innerHeight > window.innerWidth) return;
+    const w = anchoParaPantalla(window.innerWidth, window.innerHeight);
+    if (w === VISTA.ancho) return;
+    juego.scale.setGameSize(w, ALTO);
+    juego.scale.refresh();          // sin esto, el canvas conserva el tamaño en pantalla viejo
+    const e = obtenerEscena();
+    if (e && e.cielo) e.redimensionar(w);
+    else VISTA.ancho = w;
+  };
+  window.addEventListener('resize', () => { clearTimeout(pendiente); pendiente = setTimeout(revisar, 120); });
+}
+
+// Al cambiar de app o apagar la pantalla, el navegador congela el dibujo pero
+// el audio seguiría corriendo: se pausa todo junto.
+function vigilarVisibilidad(obtenerEscena, audio) {
   document.addEventListener('visibilitychange', () => {
-    const escena = juego.scene.scenes[0];
-    if (!escena || !escena.reloj) return;
+    const e = obtenerEscena();
     if (document.hidden) {
-      escena.reloj.dormir();
-      if (escena.scene.isActive()) escena.scene.pause();
-    } else {
-      escena.reloj.despertar();
-      if (escena.scene.isPaused() && window.innerWidth >= window.innerHeight) {
-        escena.scene.resume();
-      }
+      if (e && e.estado === 'jugando') e.pausar();
+      else audio.pausar();
+    } else if (!e || e.estado !== 'pausa') {
+      audio.reanudar();
     }
   });
 }
 
-// ----------------------------------------------------------------------------
-//  4) Phaser
-// ----------------------------------------------------------------------------
-const config = {
-  type: Phaser.AUTO,          // WebGL si se puede, Canvas si no
-  parent: 'juego',
-  backgroundColor: COLORES.FONDO_CSS,
+async function arrancar() {
+  blindarGestos();
+  if (!hayWebGL()) {
+    document.getElementById('error').hidden = false;
+    document.getElementById('cargando').hidden = true;
+    return;
+  }
 
-  scale: {
-    // La resolución virtual es FIJA: dibujamos siempre en 960x540 y Phaser
-    // escala el canvas. En un celular con pantalla enorme seguimos rellenando
-    // 960x540 píxeles, no 2400x1080: es la decisión que más FPS ahorra.
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: PANTALLA.ANCHO,
-    height: PANTALLA.ALTO,
-  },
+  // La tipografía tiene que estar cargada antes de hornearla en el atlas.
+  try {
+    await Promise.race([document.fonts.load('64px Anton'), new Promise(r => setTimeout(r, 3000))]);
+  } catch (e) { /* seguimos con la de respaldo */ }
 
-  render: {
-    pixelArt: true,           // los sprites CC0 son pixel art: nada de suavizado
-    antialias: false,
-    powerPreference: 'high-performance',
-    // Ahorra una limpieza de pantalla por cuadro: el fondo lo dibujamos nosotros.
-    clearBeforeRender: true,
-  },
+  const audio = new Audio();
+  const ui = new UI(audio);
 
-  fps: { target: 60, min: 30, forceSetTimeOut: false },
+  VISTA.ancho = anchoParaPantalla(window.innerWidth, window.innerHeight);
+  const juego = new Phaser.Game({
+    type: Phaser.WEBGL,
+    parent: 'juego',
+    width: VISTA.ancho,
+    height: ALTO,
+    backgroundColor: '#241640',
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    render: { antialias: true, pixelArt: false, roundPixels: false, powerPreference: 'high-performance' },
+    fps: { target: 60, min: 20 },
+    audio: { noAudio: true },                  // el audio es nuestro: un solo AudioContext
+    input: { keyboard: false, mouse: false, touch: false, gamepad: false },   // eventos nativos
+    banner: false,
+  });
+  juego.scene.add('Juego', Juego, true, { audio, ui });
 
-  // Arcade physics: la más barata de las tres. Se usa SOLO para detectar
-  // colisiones; la altura del salto la calculamos nosotros contra el reloj
-  // de audio (ver ritmo.js -> alturaDeSalto).
-  physics: {
-    default: 'arcade',
-    arcade: { gravity: { y: 0 }, debug: false, fixedStep: true, fps: 60 },
-  },
+  const escena = () => juego.scene.getScene('Juego');
+  vigilarOrientacion(escena);
+  vigilarAncho(juego, escena);
+  vigilarVisibilidad(escena, audio);
+  document.getElementById('cargando').hidden = true;
+  if (DEBUG) window.juego = juego;
+}
 
-  scene: [Paso0],
-};
-
-blindarGestos();
-const juego = new Phaser.Game(config);
-vigilarOrientacion(juego);
-vigilarVisibilidad(juego);
-window.juego = juego; // para inspeccionar desde la consola mientras desarrollamos
+arrancar();
