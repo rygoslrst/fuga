@@ -64,6 +64,9 @@ export const TERRENO = {
   ALTO_NIVEL: 52,
   NIVEL_MAX: 3,
   LINEA_MUERTE: ALTO + 140, // si los pies pasan de acá, te caíste
+  // Un escalón que no saltaste lo trepás solo (como en Vector), en este tiempo.
+  // También si un salto queda corto por poco y te agarrás del borde.
+  TREPA_ESCALON_S: 0.16,
 };
 export const yDeNivel = n => TERRENO.NIVEL_0_Y - n * TERRENO.ALTO_NIVEL;
 
@@ -78,6 +81,7 @@ export const PERSEGUIDOR = {
                            // se te acerca solo, y sólo los trucos lo mantienen lejos
   CASTIGO_GOLPE: 90,       // cada choque lo acerca esto
   CASTIGO_HUECO: 135,      // caer en un hueco: te agarrás del borde, pero cuesta más
+  CASTIGO_ESCALON: 30,     // trepar un escalón sin saltarlo: no es un choque, pero frena
   PREMIO_TRUCO: 2,         // cada truco lo aleja un poquito
   PREMIO_COMBO_5: 15,      // y cada 5 de combo, un tirón
   INVULNERABLE_MS: 700,    // después de un choque, no podés chocar de nuevo
@@ -89,6 +93,9 @@ export const PUNTOS = {
   PX_POR_METRO: 40,
   TRUCO: { valla: 50, barrida: 50, vuelo: 30, voltereta: 80, subida: 20 },
   COMBO_MAX: 20,
+  // Las monedas están sobre el arco de un salto bien hecho y debajo de los
+  // carteles: premian saltar a tiempo sin que haga falta explicarlo.
+  MONEDA: 10,
 };
 
 // --- Rendimiento --------------------------------------------------------------
@@ -98,6 +105,7 @@ export const RENDIMIENTO = {
   EDIFICIOS_POOL: 14,
   VENTANAS_POOL: 180,
   OBSTACULOS_POOL: 24,
+  MONEDAS_POOL: 48,
 };
 
 // --- Colores --------------------------------------------------------------------

@@ -99,7 +99,8 @@ export class UI {
     $('fin-causa').textContent = d.causa === 'atrapado' ? 'Te atrapó' : 'Te caíste';
     $('fin-puntos').textContent = d.puntos;
     $('fin-detalle').textContent =
-      `${d.metros} m · ${d.trucos} ${d.trucos === 1 ? 'truco' : 'trucos'}` + (d.combo >= 2 ? ` · combo ×${d.combo}` : '');
+      `${d.metros} m · ${d.monedas} ${d.monedas === 1 ? 'moneda' : 'monedas'} · ` +
+      `${d.trucos} ${d.trucos === 1 ? 'truco' : 'trucos'}` + (d.combo >= 2 ? ` · combo ×${d.combo}` : '');
     const rec = $('fin-record');
     rec.textContent = d.nuevo ? '¡Nuevo récord!' : `Récord: ${d.record}`;
     rec.classList.toggle('nuevo', d.nuevo);

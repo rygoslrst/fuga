@@ -7,7 +7,8 @@
 //  rinde en un celular de gama baja.
 //
 //  Todo se dibuja en BLANCO y se colorea en el juego con tint, salvo el cielo
-//  (que ya viene con su degradé) y el corredor (que tiene sus propios colores).
+//  (que ya viene con su degradé), la moneda y el corredor (que tienen sus
+//  propios colores).
 // ============================================================================
 
 import { cuadrosDelPersonaje } from './Sprites.js';
@@ -115,6 +116,21 @@ function cartel(ctx, x, y) {
   });
 }
 
+// Moneda: va con sus propios colores (no se tiñe). El borde oscuro es el de
+// los techos: se lee igual contra el cielo naranja que contra un edificio.
+function moneda(ctx, x, y) {
+  const cx = x + 14, cy = y + 14;
+  ctx.fillStyle = hex(COLOR.EDIFICIO);
+  ctx.beginPath(); ctx.arc(cx, cy, 13.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = hex(COLOR.ORO);
+  ctx.beginPath(); ctx.arc(cx, cy, 10.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#d18f1f';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.ellipse(cx - 4, cy - 5, 3.2, 2, -0.7, 0, Math.PI * 2); ctx.fill();
+}
+
 // ----------------------------------------------------------------------------
 //  La ciudad de fondo: dos franjas que se repiten sin costura
 // ----------------------------------------------------------------------------
@@ -202,6 +218,7 @@ function piezasSueltas() {
     { nombre: 'ventilacion', w: 54, h: 42, dibujar: ventilacion },
     { nombre: 'maquina', w: 62, h: 52, dibujar: maquina },
     { nombre: 'cartel', w: 72, h: 118, dibujar: cartel },
+    { nombre: 'moneda', w: 28, h: 28, dibujar: moneda },
     { nombre: 'ciudad_lejos', w: 960, h: 190,
       dibujar: (c, x, y) => skyline(c, x, y, 960, 190, 7, 40, 150, false) },
     { nombre: 'ciudad_medio', w: 960, h: 250,

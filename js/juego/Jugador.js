@@ -23,6 +23,8 @@ import { ESTADO } from './Mundo.js';
 // 90 px, barriéndose 45). Rozar algo con el borde del dibujo no es un choque:
 // eso es lo que se siente justo.
 const HB = { MEDIO: 13, ALTO: ALTURAS.DE_PIE - 12, BAJO: 32 };
+// Las monedas se agarran con más margen que el de los choques: rozarla cuenta.
+const R_MONEDA = 18;
 const ORIGEN_X = CUADRO.ANCLA_X / CUADRO.W;
 const ORIGEN_Y = CUADRO.ANCLA_Y / CUADRO.H;
 
@@ -52,6 +54,7 @@ export class Jugador {
     this.puntosTrucos = 0;
     this.trucos = 0;
     this.golpes = 0;
+    this.monedas = 0;
     this.invulnerableHasta = -1;
     this.tGolpe = -9;
     this.tAterrizo = -9;
@@ -102,7 +105,7 @@ export class Jugador {
       case 'suelo':
       case 'desliz': {
         if (sup === null || sup > this.yBase + 3) { this.caer(ts); break; }
-        if (sup < this.yBase - 3) { this.pared(ts, sup); break; }
+        if (sup < this.yBase - 3) { this.escalon(ts, sup); break; }
         this.y = this.yBase = sup;
         this.tUltSuelo = ts;
         if (this.estado === 'desliz' && ts - this.tDesliz >= this.durDesliz) {
@@ -138,9 +141,10 @@ export class Jugador {
           if (vy <= 0 && yN >= sup && this.y <= sup + 6) { this.aterrizar(ts, sup); break; }
           if (yN > sup + 6) {
             // Llegaste al edificio de enfrente por debajo del borde: te agarrás
-            // y trepás. Si venías colgando de un hueco, cuesta mucho más.
+            // y trepás. Por poco, es un escalón; si venías colgando de un
+            // hueco, cuesta mucho más.
             if (this.colgando || yN - sup > 70) this.caidaEnHueco(ts, sup);
-            else this.pared(ts, sup);
+            else this.escalon(ts, sup);
             break;
           }
           this.y = yN;
@@ -172,7 +176,7 @@ export class Jugador {
         return;
     }
     if (this.estado !== 'muerto' && this.estado !== 'trepa') this.colisiones(ts);
-    if (this.estado !== 'muerto') this.revisarTrucos(ts);
+    if (this.estado !== 'muerto') { this.revisarTrucos(ts); this.juntarMonedas(); }
   }
 
   // --------------------------------------------------------------------------
@@ -250,9 +254,12 @@ export class Jugador {
     this.escena.efectos.polvo(this.x, sup, caida > 120 ? 9 : 5, 1);
   }
 
-  pared(ts, sup) {
-    this.golpe(ts, 'pared');
-    this.trepar(ts, sup, 0.2);
+  // Un escalón que no saltaste, o un salto que quedó corto por poco: lo trepás
+  // solo, como en Vector. No es un choque (no corta el combo), pero trepar
+  // frena y el perseguidor se acerca un poco. Saltarlo es mejor: da truco.
+  escalon(ts, sup) {
+    this.escena.alEscalon();
+    this.trepar(ts, sup, TERRENO.TREPA_ESCALON_S);
   }
 
   caidaEnHueco(ts, sup) {
@@ -319,6 +326,22 @@ export class Jugador {
         }
         this.golpe(ts, esObst ? 'caja' : 'cartel');
       }
+    }
+  }
+
+  juntarMonedas() {
+    const alto = this.estado === 'desliz' ? HB.BAJO : HB.ALTO;
+    const alcance = HB.MEDIO + R_MONEDA;
+    const c0 = Math.floor((this.x - alcance) / COL), c1 = Math.floor((this.x + alcance) / COL);
+    for (let c = c0; c <= c1; c++) {
+      const my = this.mundo.monedaY(c);
+      if (!my) continue;
+      const mx = this.mundo.monedaX(c);
+      if (mx < this.x - alcance || mx > this.x + alcance) continue;
+      if (my < this.y - alto - R_MONEDA || my > this.y + R_MONEDA) continue;
+      this.mundo.recogerMoneda(c);
+      this.monedas++;
+      this.escena.alMoneda(mx, my);
     }
   }
 

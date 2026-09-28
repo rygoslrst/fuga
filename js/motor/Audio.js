@@ -43,6 +43,9 @@ export class Audio {
     this._ultAudio = 0; this._ultPerf = 0; this._ultEst = 0;
     this._usarPerf = true;
     this._perfPausado = 0; this._pausadoEn = null;
+    // Tiempo del juego = reloj crudo − _desfase. El tutorial lo congela (ver
+    // congelar) sin detener el AudioContext, y al seguir suma lo que duró.
+    this._desfase = 0; this._congeladoEn = null;
 
     this.cambios = [{ t: 0, beat: 0, bpm: 120 }];
     this.proxPaso = 0;
@@ -117,6 +120,11 @@ export class Audio {
   //  currentTime avanza a saltos (bloques de audio). Para que el movimiento sea
   //  suave, entre salto y salto se interpola con performance.now().
   ahora() {
+    if (this._congeladoEn !== null) return this._congeladoEn;
+    return this._crudo() - this._desfase;
+  }
+
+  _crudo() {
     if (this._usarPerf) {
       const p = this._pausadoEn !== null ? this._pausadoEn : performance.now() / 1000;
       return p - this._perfPausado;
@@ -158,6 +166,34 @@ export class Audio {
     this.resincronizar();
   }
 
+  // El tutorial detiene el juego en un instante exacto (t, que ya pasó por muy
+  // poco) hasta que el jugador hace el gesto. La música se apaga; al seguir,
+  // el tiempo retoma desde t y la música desde el mismo pulso.
+  congelar(t) {
+    if (this._congeladoEn !== null) return;
+    this._congeladoEn = t;
+    if (this.musica) {
+      const c = this.ctx.currentTime;
+      this.musica.gain.cancelScheduledValues(c);
+      this.musica.gain.setTargetAtTime(0, c, 0.03);
+    }
+  }
+
+  descongelar() {
+    const t = this._congeladoEn;
+    if (t === null) return;
+    this._congeladoEn = null;
+    this._desfase = this._crudo() - t;
+    // Los pasos que ya estaban agendados sonaron en silencio: se vuelven a
+    // agendar desde el pulso donde se congeló.
+    this.proxPaso = Math.ceil(this.beatEn(t) * 4 - 1e-6);
+    if (this.musica && this.musicaActiva) {
+      const c = this.ctx.currentTime;
+      this.musica.gain.cancelScheduledValues(c);
+      this.musica.gain.setTargetAtTime(0.55, c, 0.05);
+    }
+  }
+
   // --------------------------------------------------------------------------
   //  MAPA DE TEMPO: el BPM puede subir durante la carrera, siempre al empezar
   //  un compás. beat(t) y t(beat) atraviesan todos los cambios.
@@ -166,6 +202,7 @@ export class Audio {
     // El reloj se elige al empezar cada carrera y no se cambia a mitad.
     this._usarPerf = !this.audioVivo;
     this._perfPausado = 0; this._pausadoEn = null;
+    this._desfase = 0; this._congeladoEn = null;
     this.resincronizar();
     const t0 = this.ahora() + 0.05;
     this.cambios.length = 0;
@@ -215,7 +252,10 @@ export class Audio {
       }
       const t = this.tiempoDeBeat(beat);
       if (t > hasta) break;
-      if (!this._usarPerf && t >= this.ctx.currentTime - 0.005) this._paso(this.proxPaso, t);
+      // t es tiempo del juego; el AudioContext va adelantado lo que duraron
+      // las lecciones del tutorial.
+      const tAudio = t + this._desfase;
+      if (!this._usarPerf && tAudio >= this.ctx.currentTime - 0.005) this._paso(this.proxPaso, tAudio, this.bpmEn(t));
       this.proxPaso++;
     }
     // Sólo se toca el filtro si el peligro cambió: agendar automatizaciones
@@ -239,12 +279,12 @@ export class Audio {
     this._peligroAplicado = 0;
   }
 
-  _paso(paso, t) {
+  _paso(paso, t, bpm) {
     const k = paso % 16;
     const compas = Math.floor(paso / 16);
     const acorde = PROGRESION[compas % 4];
     const I = this.intensidad;
-    const seg16 = 60 / this.bpmEn(t) / 4;
+    const seg16 = 60 / bpm / 4;
 
     if (k % 4 === 0) this._bombo(t, 1);
     if (I >= 2 && compas % 4 === 3 && k === 14) this._bombo(t, 0.6);
@@ -361,6 +401,25 @@ export class Audio {
     const n = PENTATONICA[Math.min(PENTATONICA.length - 1, Math.max(0, combo - 1))];
     this._osc('triangle', midi(n), this._t, 0.28, 0.2, this.sfx);
     this._osc('sine', midi(n + 7), this._t + 0.03, 0.2, 0.06, this.sfx);
+  }
+  // Moneda: dos notas cortas, cada vez más agudas si vienen seguidas (las tres
+  // de un salto suenan como un arpegio).
+  moneda(racha) {
+    if (!this._ok) return;
+    const n = PENTATONICA[Math.min(PENTATONICA.length - 1, 4 + racha)] + 12;
+    this._osc('square', midi(n), this._t, 0.06, 0.035, this.sfx);
+    this._osc('triangle', midi(n + 5), this._t + 0.045, 0.16, 0.14, this.sfx);
+  }
+  // Trepar un escalón sin saltarlo: un golpe sordo, no el de un choque.
+  trepada() {
+    if (!this._ok) return;
+    this._osc('sine', 120, this._t, 0.09, 0.3, this.sfx, 70);
+    this._ruido(this._t, 0.08, 0.1, this.sfx, 'lowpass', 900, 300);
+  }
+  // Tutorial: el tiempo se detiene.
+  pausaLeccion() {
+    if (!this._ok) return;
+    this._osc('sine', 660, this._t, 0.22, 0.1, this.sfx, 330);
   }
   golpe() {
     if (!this._ok) return;

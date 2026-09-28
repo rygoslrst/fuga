@@ -19,6 +19,14 @@ No hay vidas. Hay un tipo que te persigue. Cada choque lo acerca, caer en un hue
 lo acerca mucho, y los trucos lo alejan. Al principio se queda atrás si corrés
 limpio; pasado el minuto corre cada vez más, y sólo los trucos lo mantienen lejos.
 
+Los escalones que no saltás los trepás solo (como en Vector): no es un choque,
+pero frena un poco. Las monedas están sobre el arco de cada salto bien hecho y
+debajo de los carteles: juntarlas es la prueba de que saltaste a tiempo.
+
+**La primera partida en cada teléfono tiene tutorial:** al llegar a la primera
+caja, al primer cartel y al primer hueco, el juego se congela en el instante
+justo y espera el gesto correcto. Hecho ahí, sale perfecto.
+
 ## Correrlo en tu computadora
 
 Parado en esta carpeta:
@@ -49,6 +57,8 @@ números vienen comentados. Lo más probable que quieras ajustar:
 | Quiero… | Archivo |
 |---|---|
 | agregar o cambiar tramos de nivel | `js/datos/segmentos.js` |
+| cambiar dónde aparecen las monedas | `js/juego/Generador.js` → `ubicarMonedas()` |
+| cambiar las lecciones del tutorial | `js/escenas/Juego.js` → `proximaLeccion()` |
 | cambiar la curva de dificultad | `js/juego/Generador.js` → `objetivo()` |
 | cambiar qué animación usa cada acrobacia | `herramientas/armar_sprites.py` → tabla `POSES` |
 | cambiar los gestos (sensibilidad del deslizamiento) | `js/escenas/Juego.js` → `GESTO` |
@@ -58,7 +68,7 @@ números vienen comentados. Lo más probable que quieras ajustar:
 
 Los niveles nunca se escriben enteros: se encadenan tramos cortos de
 `js/datos/segmentos.js`. Cada tramo es una grilla de texto. Copiá uno parecido,
-cambiale el nombre y dibujá. Si rompe alguna regla (un hueco imposible, dos saltos
+cambiale el nombre y dibujá. Las monedas no se dibujan: se ubican solas. Si rompe alguna regla (un hueco imposible, dos saltos
 demasiado pegados), el juego lo descarta al arrancar y avisa en la consola del
 navegador (F12) qué regla rompió.
 

@@ -64,11 +64,19 @@ export class Mundo {
     this.pObst = new Pool(img('caja', 7), RENDIMIENTO.OBSTACULOS_POOL);
     this.pCarteles = new Pool(img('cartel', 7), RENDIMIENTO.OBSTACULOS_POOL);
     this.pCables = new Pool(img('blanco', 4), RENDIMIENTO.OBSTACULOS_POOL);
+    this.pMonedas = new Pool(img('moneda', 8), RENDIMIENTO.MONEDAS_POOL);
+
+    // Monedas: a lo sumo una por columna. monY = altura en pantalla (0 = no
+    // hay), monDX = corrimiento desde el centro de la columna.
+    this.monY = new Int16Array(MASK + 1);
+    this.monDX = new Int8Array(MASK + 1);
 
     // Lo que está en pantalla, con el borde derecho para saber cuándo sacarlo.
-    this.vivos = [];        // { obj, pool, der }
+    this.vivos = [];        // { obj, pool, der, col?, mapa? }
     this.volando = [];      // obstáculos chocados que salen despedidos
     this.obstPorCol = new Map();
+    this.monPorCol = new Map();
+    this.reloj = 0;
   }
 
   reiniciar(generador) {
@@ -77,10 +85,13 @@ export class Mundo {
     this.vivos.length = 0;
     this.volando.length = 0;
     this.obstPorCol.clear();
+    this.monPorCol.clear();
     this.nivel.fill(0); this.obst.fill(0); this.barra.fill(0); this.estado.fill(0);
+    this.monY.fill(0); this.monDX.fill(0);
     this.generador = generador;
     this.colGen = 0;
     this.colVis = 0;
+    this.colMon = 0;
   }
 
   // --------------------------------------------------------------------------
@@ -99,6 +110,8 @@ export class Mundo {
   barraEn(col) { return col < 0 ? 0 : this.barra[col & MASK]; }
   estadoEn(col) { return this.estado[col & MASK]; }
   marcar(col, e) { this.estado[col & MASK] = e; }
+  monedaY(col) { return col < 0 ? 0 : this.monY[col & MASK]; }
+  monedaX(col) { return col * COL + COL / 2 + this.monDX[col & MASK]; }
 
   // Caja de colisión de lo que haya en la columna: [izq, der, arriba, abajo]
   cajaObst(col, fuera) {
@@ -124,17 +137,50 @@ export class Mundo {
     const objetivo = Math.ceil(xDerecha / COL) + 6;
     while (this.colGen < objetivo) this.escribir(this.generador.siguiente());
     this.construir();
+    this.construirMonedas();
   }
 
   escribir({ seg, offset }) {
+    const x0 = this.colGen * COL;
     for (let c = 0; c < seg.n; c++) {
       const i = this.colGen & MASK;
       this.nivel[i] = seg.niv[c] < 0 ? -1 : seg.niv[c] + offset;
       this.obst[i] = seg.obs[c];
       this.barra[i] = seg.bar[c];
       this.estado[i] = ESTADO.PENDIENTE;
+      this.monY[i] = 0;
       this.colGen++;
     }
+    for (const m of seg.monedas) {
+      const x = x0 + m.x, col = Math.floor(x / COL), i = col & MASK;
+      if (this.monY[i]) continue;                         // una por columna: gana la primera
+      this.monY[i] = Math.round(yDeNivel(m.nivel + offset) - m.h);
+      this.monDX[i] = Math.round(x - (col * COL + COL / 2));
+    }
+  }
+
+  construirMonedas() {
+    while (this.colMon < this.colGen) {
+      const c = this.colMon++;
+      if (!this.monY[c & MASK]) continue;
+      const o = this.pMonedas.tomar();
+      if (!o) continue;
+      o.setPosition(this.monedaX(c), this.monY[c & MASK]).setScale(1);
+      const reg = { obj: o, pool: this.pMonedas, der: c * COL + COL, col: c, mapa: this.monPorCol };
+      this.vivos.push(reg);
+      this.monPorCol.set(c, reg);
+    }
+  }
+
+  // La moneda deja de existir en el terreno y su dibujo vuelve al pool.
+  recogerMoneda(col) {
+    this.monY[col & MASK] = 0;
+    const reg = this.monPorCol.get(col);
+    if (!reg) return;
+    this.monPorCol.delete(col);
+    const i = this.vivos.indexOf(reg);
+    if (i >= 0) { this.vivos[i] = this.vivos[this.vivos.length - 1]; this.vivos.pop(); }
+    reg.pool.soltar(reg.obj);
   }
 
   // Agrupa columnas de igual altura en edificios. Un edificio no pasa de 10
@@ -186,7 +232,7 @@ export class Mundo {
         if (o) {
           o.setFrame(OBST_INFO[tipo].marco).setOrigin(0.5, 1).setPosition(col * COL + COL / 2, y + 1)
            .setTint(COLOR.EDIFICIO).setAngle(0).setAlpha(1);
-          const reg = { obj: o, pool: this.pObst, der: col * COL + COL, col };
+          const reg = { obj: o, pool: this.pObst, der: col * COL + COL, col, mapa: this.obstPorCol };
           this.vivos.push(reg);
           this.obstPorCol.set(col, reg);
         }
@@ -224,13 +270,17 @@ export class Mundo {
   // --------------------------------------------------------------------------
   actualizar(camX, dt) {
     const limite = camX - 60;
+    this.reloj += dt;
     for (let i = this.vivos.length - 1; i >= 0; i--) {
       const v = this.vivos[i];
       if (v.der < limite) {
-        if (v.col !== undefined) this.obstPorCol.delete(v.col);
+        if (v.mapa) v.mapa.delete(v.col);
         v.pool.soltar(v.obj);
         this.vivos[i] = this.vivos[this.vivos.length - 1];
         this.vivos.pop();
+      } else if (v.pool === this.pMonedas) {
+        // Giran en ola: cada una un poco después que la anterior.
+        v.obj.scaleX = 0.3 + 0.7 * Math.abs(Math.cos(this.reloj * 4 - v.col * 0.8));
       }
     }
 

@@ -11,7 +11,7 @@
 // ============================================================================
 
 import { SEGMENTOS } from '../datos/segmentos.js';
-import { TERRENO } from '../config.js';
+import { TERRENO, SALTO, RITMO, PX_POR_COLUMNA as COL } from '../config.js';
 
 export const OBST = { NADA: 0, CAJA: 1, VENT: 2, MAQ: 3 };
 const LETRA_OBST = { c: OBST.CAJA, v: OBST.VENT, m: OBST.MAQ };
@@ -30,7 +30,45 @@ function leer(seg) {
   }
   let min = 9, max = -9;
   for (const v of niv) if (v >= 0) { min = Math.min(min, v); max = Math.max(max, v); }
-  return { ...seg, n, niv, obs, bar, min, max, primero: niv[0], ultimo: niv[n - 1] };
+  const s = { ...seg, n, niv, obs, bar, min, max, primero: niv[0], ultimo: niv[n - 1] };
+  s.monedas = ubicarMonedas(s);
+  return s;
+}
+
+// ----------------------------------------------------------------------------
+//  Monedas: se ubican SOLAS, con reglas, al leer cada segmento. Un segmento
+//  nuevo no pide ubicar monedas a mano (costo acotado).
+//    · tres sobre el arco del salto bien hecho de cada caja, hueco y escalón
+//    · una debajo de cada columna de cartel, a la altura de la barrida
+//    · en los descansos, un arco optativo: saltar a tiempo "porque sí" paga
+//  Cada una: x desde el comienzo del segmento (donde pasa el centro del
+//  cuerpo), nivel del techo desde donde se mide y altura en px sobre él.
+// ----------------------------------------------------------------------------
+const CUERPO = 40;           // del pie al centro del cuerpo: ahí va la moneda
+const BAJA = 22;             // moneda de barrida: pasa por debajo de un cartel
+
+function ubicarMonedas(s) {
+  const lista = [];
+  const pulso = RITMO.PX_POR_PULSO;
+  // Arco de un salto que despega en x0: en 1/4, 1/2 y 3/4 del pulso.
+  const arco = (x0, nivel) => {
+    for (const p of [0.25, 0.5, 0.75]) {
+      lista.push({ x: x0 + p * pulso, nivel, h: 4 * SALTO.ALTURA * p * (1 - p) + CUERPO });
+    }
+  };
+  if (s.nombre === 'inicio') return lista;           // la largada, limpia
+  for (let i = 1; i < s.n; i++) {
+    const n = s.niv[i], antes = s.niv[i - 1];
+    if (s.obs[i]) arco(i * COL + COL / 2 - pulso / 2, n);            // cumbre sobre la caja
+    else if (n < 0 && antes >= 0) arco(i * COL - COL / 2, antes);    // despegue junto al borde
+    else if (n >= 0 && antes >= 0 && n > antes) arco(i * COL - COL, antes);
+    if (s.bar[i]) lista.push({ x: i * COL + COL / 2, nivel: n, h: BAJA });
+  }
+  if (s.exige === 'descanso') {
+    const x0 = s.n * COL / 2 - pulso / 2;
+    arco(x0, s.niv[Math.floor(x0 / COL)]);
+  }
+  return lista;
 }
 
 export function validar(seg) {

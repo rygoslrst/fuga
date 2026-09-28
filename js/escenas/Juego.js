@@ -1,8 +1,8 @@
 // ============================================================================
 //  Juego.js — la única escena
 // ----------------------------------------------------------------------------
-//  Título, carrera, muerte y fin de partida son ESTADOS de una misma escena,
-//  no escenas distintas. Por eso reintentar es instantáneo: no se carga ni se
+//  Título, carrera, lección del tutorial, muerte y fin de partida son ESTADOS
+//  de una misma escena, no escenas distintas. Por eso reintentar es instantáneo: no se carga ni se
 //  crea nada, sólo se reacomodan los objetos que ya existen.
 // ============================================================================
 
@@ -10,7 +10,7 @@ import { ANCHO, ALTO, VISTA, JUGADOR_X, RITMO, PERSEGUIDOR, PUNTOS, COLOR, DEBUG
          CLAVE_RECORD, CLAVE_TUTORIAL, PX_POR_COLUMNA as COL, bpmParaTiempo } from '../config.js';
 import { crearAtlas } from '../motor/Atlas.js';
 import { Generador } from '../juego/Generador.js';
-import { Mundo, ESTADO } from '../juego/Mundo.js';
+import { Mundo } from '../juego/Mundo.js';
 import { Jugador } from '../juego/Jugador.js';
 import { FR } from '../motor/Sprites.js';
 import { Perseguidor } from '../juego/Perseguidor.js';
@@ -18,6 +18,7 @@ import { Efectos } from '../juego/Efectos.js';
 import { Hud } from '../juego/Hud.js';
 
 const X_INICIO = 8 * COL;
+const FIN_TUTORIAL = 96;     // columna donde terminan los tramos de introducción
 const GESTO = { UMBRAL_PX: 22, TOQUE_MS: 100 };
 const NOMBRE_TRUCO = { valla: 'VALLA', barrida: 'BARRIDA', vuelo: 'VUELO', voltereta: 'VOLTERETA', subida: 'SUBIDA' };
 const limitar = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -149,57 +150,70 @@ export class Juego extends Phaser.Scene {
 
     canvas.addEventListener('pointerdown', e => {
       if (e.pointerType === 'touch') this.esTactil = true;
-      if (this.estado !== 'jugando' || performance.now() < this.ignorarHasta) return;
+      if (!this.recibeEntrada || performance.now() < this.ignorarHasta) return;
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* nada */ }
       this.gestos.push({ id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), hecho: false });
     });
     canvas.addEventListener('pointermove', e => {
       const g = this.gesto(e.pointerId);
-      if (!g || g.hecho || this.estado !== 'jugando') return;
+      if (!g || g.hecho || !this.recibeEntrada) return;
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (Math.abs(dy) >= GESTO.UMBRAL_PX && Math.abs(dy) > Math.abs(dx) * 0.6) {
         g.hecho = true;
-        const t = this.audio.ahora();
-        if (dy < 0) this.jugador.pedirSalto(t);
-        else this.jugador.pedirDesliz(t);
+        this.accion(dy < 0 ? 'saltar' : 'deslizar');
       }
     });
     const soltar = e => {
       const g = this.gesto(e.pointerId);
       if (!g) return;
       this.gestos.splice(this.gestos.indexOf(g), 1);
-      if (!g.hecho && e.type === 'pointerup' && this.estado === 'jugando') this.jugador.pedirSalto(this.audio.ahora());
+      if (!g.hecho && e.type === 'pointerup' && this.recibeEntrada) this.accion('saltar');
     };
     canvas.addEventListener('pointerup', soltar);
     canvas.addEventListener('pointercancel', soltar);
 
     window.addEventListener('keydown', e => {
-      if (e.repeat || this.estado !== 'jugando' || performance.now() < this.ignorarHasta) return;
-      const t = this.audio.ahora();
+      if (e.repeat || !this.recibeEntrada || performance.now() < this.ignorarHasta) return;
       switch (e.code) {
         case 'Space': case 'ArrowUp': case 'KeyW': case 'KeyZ':
-          this.esTactil = false; this.jugador.pedirSalto(t); e.preventDefault(); break;
+          this.esTactil = false; this.accion('saltar'); e.preventDefault(); break;
         case 'ArrowDown': case 'KeyS': case 'KeyX': case 'ShiftLeft':
-          this.esTactil = false; this.jugador.pedirDesliz(t); e.preventDefault(); break;
+          this.esTactil = false; this.accion('deslizar'); e.preventDefault(); break;
         case 'Escape': case 'KeyP':
           this.pausar(); break;
       }
     });
   }
 
+  get recibeEntrada() { return this.estado === 'jugando' || this.estado === 'leccion'; }
+
   gesto(id) {
     for (const g of this.gestos) if (g.id === id) return g;
     return null;
   }
 
+  // Toda entrada termina acá. Corriendo, se le pide la acción al corredor; en
+  // una lección del tutorial, sólo el gesto correcto destraba el juego.
+  accion(tipo) {
+    if (this.estado === 'leccion') {
+      if (tipo !== (this.leccion.tipo === 'deslizar' ? 'deslizar' : 'saltar')) { this.hud.sacudir(); return; }
+      this.terminarLeccion();
+    }
+    const t = this.audio.ahora();
+    if (tipo === 'saltar') this.jugador.pedirSalto(t);
+    else this.jugador.pedirDesliz(t);
+  }
+
   // Un dedo que se apoya y no se mueve cuenta como toque (salto) a los 100 ms,
-  // sin esperar a que lo levante: así tocar no se siente lento.
+  // sin esperar a que lo levante: así tocar no se siente lento. En la lección
+  // de barrerse no: ese dedo quieto está por deslizar hacia abajo.
   revisarGestos() {
+    if (this.estado === 'leccion' && this.leccion.tipo === 'deslizar') return;
     const ahora = performance.now();
     for (const g of this.gestos) {
       if (!g.hecho && ahora - g.t >= GESTO.TOQUE_MS) {
         g.hecho = true;
-        this.jugador.pedirSalto(this.audio.ahora());
+        this.accion('saltar');
       }
     }
   }
@@ -214,6 +228,10 @@ export class Juego extends Phaser.Scene {
     this.perseguidor.reiniciar();
     this.efectos.limpiar();
     this.conIntro = conIntro;
+    this.leccionSig = null;
+    this.ultLeccion = -1;
+    this.rachaMonedas = 0;
+    this.tUltMoneda = -9;
     this.ventaja = PERSEGUIDOR.VENTAJA_INICIAL;
     this.camX = X_INICIO - JUGADOR_X;
     this.cameras.main.scrollX = this.camX;
@@ -278,6 +296,7 @@ export class Juego extends Phaser.Scene {
     switch (this.estado) {
       case 'titulo': this.cuadroTitulo(dt); break;
       case 'jugando': this.cuadroCarrera(dt); break;
+      case 'leccion': this.cuadroLeccion(dt); break;
       case 'muriendo':
       case 'fin': this.cuadroMuerte(dt); break;
     }
@@ -291,7 +310,7 @@ export class Juego extends Phaser.Scene {
   }
 
   cuadroCarrera(dt) {
-    const t = this.audio.ahora();
+    let t = this.audio.ahora();
     this.bpmObjetivo = bpmParaTiempo(Math.max(0, t - this.tInicio));
     this.audio.programar(this.bpmObjetivo);
 
@@ -301,9 +320,18 @@ export class Juego extends Phaser.Scene {
     if (t < this.congeladoHasta) return;
 
     this.revisarGestos();
+    // Tutorial: si en este cuadro se llega al punto de una lección, se simula
+    // exactamente hasta ahí y el juego se congela en ese instante.
+    let lec = this.conIntro ? this.proximaLeccion() : null;
+    if (lec) {
+      const tL = this.audio.tiempoDeBeat((lec.x - X_INICIO) / RITMO.PX_POR_PULSO);
+      if (tL <= t) t = Math.max(this.tPrev, tL);
+      else lec = null;
+    }
     this.jugador.paso(this.tPrev, t, this.xEn);
     this.tPrev = t;
     if (this.estado !== 'jugando') return;                    // murió en este cuadro
+    if (lec) this.llegarALeccion(lec, t);
 
     const beat = this.audio.beatEn(t);
     this.camX = this.jugador.x - JUGADOR_X;
@@ -334,9 +362,9 @@ export class Juego extends Phaser.Scene {
     this.fondo();
 
     this.metros = Math.max(0, Math.floor((this.jugador.x - X_INICIO) / PUNTOS.PX_POR_METRO));
-    this.puntos = this.metros + this.jugador.puntosTrucos;
-    this.hud.actualizar(this.puntos, this.metros, c, dt);
-    if (this.conIntro) this.pistas();
+    this.puntos = this.metros + this.jugador.puntosTrucos + this.jugador.monedas * PUNTOS.MONEDA;
+    this.hud.actualizar(this.puntos, this.metros, c, this.jugador.monedas, dt);
+    if (this.conIntro && this.jugador.x > FIN_TUTORIAL * COL) this.tutorialVisto();
   }
 
   cuadroMuerte(dt) {
@@ -364,6 +392,20 @@ export class Juego extends Phaser.Scene {
     this.congeladoHasta = this.audio.ahora() + 0.07;
     this.audio.golpe();
     vibrar(60);
+  }
+
+  alEscalon() {
+    this.ventaja -= PERSEGUIDOR.CASTIGO_ESCALON;
+    this.efectos.polvo(this.jugador.x + 12, this.jugador.y, 4, 1);
+    this.audio.trepada();
+  }
+
+  alMoneda(x, y) {
+    const t = this.audio.ahora();
+    this.rachaMonedas = t - this.tUltMoneda < 0.5 ? this.rachaMonedas + 1 : 0;
+    this.tUltMoneda = t;
+    this.efectos.chispas(x, y, 3, COLOR.ORO);
+    this.audio.moneda(this.rachaMonedas);
   }
 
   alTruco(tipo, combo, pts) {
@@ -403,40 +445,72 @@ export class Juego extends Phaser.Scene {
       guardar(CLAVE_RECORD, String(this.record));
       this.audio.record();
     }
-    if (this.conIntro) {
-      this.tutorialPendiente = false;
-      guardar(CLAVE_TUTORIAL, '1');
-    }
+    if (this.conIntro) this.tutorialVisto();
     this.hud.mostrar(false);
     this.ui.mostrarFin({
-      causa: this.causa, puntos: this.puntos, metros: this.metros,
+      causa: this.causa, puntos: this.puntos, metros: this.metros, monedas: this.jugador.monedas,
       record: this.record, nuevo, trucos: this.jugador.trucos, combo: this.mejorCombo,
     });
   }
 
   // --------------------------------------------------------------------------
-  //  Tutorial: sólo la primera vez en este teléfono. Te dice qué tocar justo
-  //  antes de cada cosa nueva.
+  //  Tutorial: sólo la primera partida en este teléfono. Como en Vector, al
+  //  llegar a cada cosa nueva el juego se congela en el instante justo y
+  //  espera el gesto. Hecho ahí, sale perfecto: nadie pierde aprendiendo.
+  //  (Los escalones no tienen lección: si no los saltás, los trepás solo.)
   // --------------------------------------------------------------------------
-  pistas() {
-    const x = this.jugador.x;
-    if (x > 64 * COL) { this.conIntro = false; this.hud.ocultarPista(); return; }
-    const c0 = Math.floor((x + 30) / COL), c1 = Math.floor((x + 400) / COL);
-    let tipo = null;
-    for (let c = c0; c <= c1 && !tipo; c++) {
-      if (this.mundo.estadoEn(c) === ESTADO.PENDIENTE && this.mundo.obstEn(c)) tipo = 'saltar';
-      else if (this.mundo.estadoEn(c) === ESTADO.PENDIENTE && this.mundo.barraEn(c)) tipo = 'deslizar';
-      else if (this.mundo.hayHueco(c)) tipo = 'hueco';
-      else if (this.mundo.nivelEnCol(c) > this.mundo.nivelEnCol(c - 1) && this.mundo.nivelEnCol(c - 1) >= 0) tipo = 'subir';
+  proximaLeccion() {
+    if (this.leccionSig) return this.leccionSig;
+    const m = this.mundo;
+    const c0 = Math.max(this.ultLeccion + 1, Math.floor(this.jugador.x / COL));
+    for (let c = c0; c <= c0 + 10 && c < FIN_TUTORIAL; c++) {
+      // El punto donde se congela es el despegue ideal: el mismo arco donde
+      // están las monedas (ver Generador.ubicarMonedas).
+      let tipo = null, x = 0;
+      if (m.obstEn(c)) { tipo = 'saltar'; x = c * COL + COL / 2 - RITMO.PX_POR_PULSO / 2; }
+      else if (m.barraEn(c)) { tipo = 'deslizar'; x = c * COL - 60; }
+      else if (m.hayHueco(c)) { tipo = 'hueco'; x = c * COL - COL / 2; }
+      if (tipo) { this.leccionSig = { tipo, x, col: c }; return this.leccionSig; }
     }
-    if (!tipo) { this.hud.ocultarPista(); return; }
-    const salto = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ARRIBA ↑' : 'ESPACIO O ↑';
-    const desliz = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ABAJO ↓' : '↓ O S';
-    const TXT = {
-      saltar: ['¡SALTÁ!', salto], hueco: ['¡SALTÁ EL HUECO!', salto],
-      subir: ['¡SALTÁ PARA SUBIR!', salto], deslizar: ['¡BARRETE!', desliz],
-    };
-    this.hud.pistaVisible(TXT[tipo][0], TXT[tipo][1]);
+    return null;
+  }
+
+  llegarALeccion(lec, t) {
+    this.leccionSig = null;
+    this.ultLeccion = lec.col + 3;
+    // Si ya lo resolvió solo (está en el aire, barriéndose o recién pidió la
+    // acción), esta lección no hace falta.
+    const j = this.jugador;
+    if (j.estado !== 'suelo' || t - j.pedidoSalto < 0.2 || t - j.pedidoDesliz < 0.2) return;
+    this.leccion = lec;
+    this.estado = 'leccion';
+    this.audio.congelar(t);
+    this.audio.pausaLeccion();
+    this.ignorarHasta = performance.now() + 200;
+  }
+
+  cuadroLeccion(dt) {
+    this.revisarGestos();
+    if (this.estado !== 'leccion') return;
+    const tipo = this.leccion.tipo, arriba = tipo !== 'deslizar';
+    const salto = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ARRIBA ↑' : 'APRETÁ ESPACIO O ↑';
+    const desliz = this.esTactil ? 'DESLIZÁ EL DEDO HACIA ABAJO ↓' : 'APRETÁ ↓ O S';
+    const titulo = tipo === 'saltar' ? '¡SALTÁ!' : tipo === 'hueco' ? '¡SALTÁ EL HUECO!' : '¡BARRETE!';
+    this.hud.leccion(titulo, arriba ? salto : desliz, arriba,
+      JUGADOR_X - 80, this.jugador.y - (arriba ? 70 : 150), dt);
+  }
+
+  terminarLeccion() {
+    this.audio.descongelar();
+    this.estado = 'jugando';
+    this.tPrev = this.audio.ahora();
+    this.hud.ocultarPista();
+  }
+
+  tutorialVisto() {
+    this.conIntro = false;
+    this.tutorialPendiente = false;
+    guardar(CLAVE_TUTORIAL, '1');
   }
 
   medirFps(time) {
