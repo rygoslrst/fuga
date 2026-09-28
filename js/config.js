@@ -151,5 +151,5 @@ export function bpmParaTiempo(seg) {
 
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 export const CLAVE_RECORD = 'fuga_record_v1';
-export const CLAVE_TUTORIAL = 'fuga_tutorial_visto_v1';
+export const CLAVE_TUTORIAL = 'fuga_tutorial_visto_v2';
 export const CLAVE_SONIDO = 'fuga_sonido_v1';
